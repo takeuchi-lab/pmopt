@@ -1,0 +1,27 @@
+add_subdirectory(databases)
+add_subdirectory(enumerators)
+add_subdirectory(optimization)
+add_subdirectory(structures)
+add_subdirectory(utils)
+
+add_executable(pmopt main.cpp)
+
+set_target_properties(pmopt PROPERTIES OUTPUT_NAME "pmopt")
+
+add_library(parameters parameters.cpp)
+add_library(variables variables.cpp)
+
+target_link_libraries(pmopt graph_database)
+target_link_libraries(pmopt itemset_database)
+target_link_libraries(pmopt sequence_database)
+target_link_libraries(pmopt graph_enumerator)
+target_link_libraries(pmopt itemset_enumerator)
+target_link_libraries(pmopt sequence_enumerator)
+target_link_libraries(pmopt basic_optimization)
+target_link_libraries(pmopt screening_optimization)
+target_link_libraries(pmopt graph_structure)
+target_link_libraries(pmopt utils_containers)
+target_link_libraries(pmopt utils_cross_validation)
+target_link_libraries(pmopt utils_write)
+target_link_libraries(pmopt parameters)
+target_link_libraries(pmopt variables)

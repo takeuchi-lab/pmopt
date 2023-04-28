@@ -1,0 +1,3 @@
+add_library(graph_enumerator graph_enumerator.cpp)
+add_library(itemset_enumerator itemset_enumerator.cpp)
+add_library(sequence_enumerator sequence_enumerator.cpp)

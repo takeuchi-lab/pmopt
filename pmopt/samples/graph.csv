@@ -1,0 +1,4 @@
+graph
+v 0 ABC v 2 00xx00 v 1 -= e 0 2 x e 0 1 y
+v 0 ABC v 1 ABC v 2 A v 3 00xx00 e 0 1 xy e 1 2 x e 2 3 y
+v 0 00x00 v 1 A e 0 0 x e 0 1 y

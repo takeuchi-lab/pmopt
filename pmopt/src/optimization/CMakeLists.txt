@@ -1,0 +1,2 @@
+add_library(basic_optimization basic.cpp)
+add_library(screening_optimization screening.cpp)

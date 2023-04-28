@@ -1,0 +1,3 @@
+add_library(graph_database graph_database.cpp)
+add_library(itemset_database itemset_database.cpp)
+add_library(sequence_database sequence_database.cpp)

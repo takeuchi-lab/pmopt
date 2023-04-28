@@ -1,0 +1,10 @@
+pmopt
+!include/pmopt
+outputs
+build
+*.out
+*.txt
+!CMakeLists.txt
+*.pdf
+*drawio.svg
+*.log
