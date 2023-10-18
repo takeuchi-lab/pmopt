@@ -13,26 +13,28 @@ static const std::string PREFIX = "  - ";
 
 unsigned int GraphEnumerator::enumerate(std::vector<PDB> & children, const PDB & parent) noexcept
 {
-    _edge_enumerator.initialize(children);
+    _edge_enumerator.initialize(children, parent);
 
     if (parent._length == 0)
     {
         // if parent is ROOT pattern then enumerating single vertex pattern
         for (unsigned int i_instance = 0; i_instance < _database.size(); ++i_instance)
-            search_vertex(_edge_enumerator, i_instance);
+            search_vertex(_edge_enumerator, _database[i_instance], i_instance);
     }
     else 
     {
         // if parent is not ROOT
-        Logger logger(std::cout);
+        // Logger logger(std::cout);
 
         // Build rightmost path
         // In gspan, edge is expanded from the vertices on the `rightmost path`.
         // Here, the ids of vertices and edges in pattern will be recoded.
         unsigned int backward_start_index;
         build_rightmost_path(_rightmost_path_pattern, backward_start_index, parent._pattern.get());
+        _rightmost_path_instance.resize(_rightmost_path_pattern.size());
 
-        logger(LOG, PREFIX, "RMP_P: ", Utils::to_string(_rightmost_path_pattern));
+
+        // logger(LOG, PREFIX, "RMP_P: ", Utils::to_string(_rightmost_path_pattern));
 
         // For each instance in which the parent occurs
         auto support = parent._occurrence.size();
@@ -58,12 +60,24 @@ unsigned int GraphEnumerator::enumerate(std::vector<PDB> & children, const PDB &
                 );
 
 
-                logger(LOG, PREFIX, "RMP_S: ", Utils::to_string(_rightmost_path_instance));
+                // logger(LOG, PREFIX, "POS: ", *position);
+                // logger(LOG, PREFIX, "RMP_S: ", Utils::to_string(_rightmost_path_instance));
 
 
                 // Search edges
-                search_backward_edge(_edge_enumerator, position, i_instance, backward_start_index);
-                search_forward_edge(_edge_enumerator, position, i_instance);
+                search_backward_edge(
+                    _edge_enumerator,
+                    position,
+                    _database[i_instance],
+                    i_instance,
+                    backward_start_index
+                );
+                search_forward_edge(
+                    _edge_enumerator,
+                    position,
+                    _database[i_instance],
+                    i_instance
+                );
             }
         }
     }
@@ -152,9 +166,13 @@ const noexcept
             rightmost_vertex = start;
 
             // set backward start index
-            if (!rightmost_edge_is_forward && end_of_rightmost_edge == start)
+            if (
+                !rightmost_edge_is_forward
+                && end_of_rightmost_edge == start
+                && backward_start_index == 0
+            )
             {
-                backward_start_index = rightmost_path.size() + 1;
+                backward_start_index = rightmost_path.size();
             }
         }
 
@@ -168,8 +186,9 @@ const noexcept
     {
         backward_start_index = rightmost_path.size() - 1;
     }
-}
 
+    assert(backward_start_index < rightmost_path.size());
+}
 
 
 
@@ -187,23 +206,28 @@ const noexcept
     // The rightmost path in pattern and right most path in instance is different
     // because vertex and edge id numbering is different between in pattern and instance
     // even if the pointing vertex is the same one.
-    rightmost_path_instance.clear();
+    // rightmost_path_instance.clear();
+    // rightmost_path_instance.resize(rightmost_path_pattern.size());
 
     // Trace rightmost path according to rightmost path in pattern.
     unsigned int index_rightmost_pattern = 0;
     while (position != nullptr)
     {
+        const auto & symbol = position->_symbol;
+        const auto & edge_pattern = pattern->_symbol._edge_pattern;
+
         // Check visited edges and vertices
-        vertex_is_visited[position->_symbol._start_vertex_id] = true;
-        vertex_is_visited[position->_symbol._end_vertex_id] = true;
-        edge_is_visited[position->_symbol._edge_id] = true;
+        vertex_is_visited[symbol._start_vertex_id] = true;
+        vertex_is_visited[symbol._end_vertex_id] = true;
+        edge_is_visited[symbol._edge_id] = true;
 
         // Check consistency between the edge in built rightmost path
         // and the edge found in tracing position in the pattern.
-        if (pattern->_symbol._edge_pattern.is_forward()
-            && rightmost_path_pattern[index_rightmost_pattern] == pattern->_symbol._edge_pattern)
+        if (edge_pattern.is_forward()
+            && rightmost_path_pattern[index_rightmost_pattern] == edge_pattern)
         {
-            rightmost_path_instance.push_back(position->_symbol);
+            // rightmost_path_instance.push_back(symbol);
+            rightmost_path_instance[index_rightmost_pattern] = symbol;
             ++index_rightmost_pattern;
         }
 
@@ -216,9 +240,8 @@ const noexcept
         pattern = pattern->_parent.get();
     }
 
-    assert(rightmost_path_pattern.size() == rightmost_path_instance.size());
+    // assert(rightmost_path_pattern.size() == rightmost_path_instance.size());
 }
-
 
 
 
@@ -229,6 +252,9 @@ bool GraphEnumerator::check_dfscode(const PDB & projected) noexcept
 
     const auto & pattern = * projected._pattern.get();
     const auto & instance = _database[pattern._symbol._instance_index];
+    // std::cout << "DFS CHECK\n";
+    // std::cout << pattern <<"/" << *projected._positions[0][0] <<"/" << projected._length<< std::endl;
+    // std::cout << instance << std::endl;
 
     // If the length is 2, checking is done simply comparing vertex labels.
     if (projected._length == 2)
@@ -239,31 +265,43 @@ bool GraphEnumerator::check_dfscode(const PDB & projected) noexcept
     }
     
     // Create dfs-code of the pattern
-    build_dfscode(_dfscode, pattern);
+    build_dfscode(_dfscode, _dfscode_patterns, pattern);
+    // std::cout << "dfscode:"; for (auto a : _dfscode) std::cout << a.str() << " "; std::cout << std::endl;
+    // std::cout << "dfscode_pattern:"; for (auto a : _dfscode_patterns) std::cout << *a << " "; std::cout << "\n";
+
 
     // Create Graph-typed pattern of the pattern
     build_pattern_graph(_dfs_check_graph, pattern);
+    // std::cout << "dfscheckgraph:" << _dfs_check_graph << "\n";
 
     // Initialize visited flags of edges and vertices
     initialize_visited(_dfs_check_graph);
 
+    // std::cout << "dfscheck_graph:" << _dfs_check_graph << std::endl;
+
     // For single-vertex edges
     // Initialize checker
-    unsigned int edge_id = 0;
-    _dfscode_checker.initialize(_dfscode[edge_id]);
-    if (!search_vertex(_dfscode_checker, DUMMY))
+    _dfscode_checker.initialize(_dfscode[0]);
+    if (!search_vertex(_dfscode_checker, _dfs_check_graph, DUMMY))
         return false;
 
+    // std::cout << "next_pos:"; for (auto a : _dfscode_checker._next_positions) std::cout << *a << " "; std::cout << std::endl;
+
+
     // For non-single-vertex edges
-    for (edge_id = 1; edge_id < _dfscode.size(); ++edge_id)
+    for (unsigned int edge_id = 0; edge_id < _dfscode.size() - 1; ++edge_id)
     {
+        // std::cout << edge_id << ":" << _dfscode[edge_id+1].str() << ":" << *_dfscode_patterns[edge_id] << std::endl;
+
         // Initialize checker
-        _dfscode_checker.initialize(_dfscode[edge_id]);
+        _dfscode_checker.initialize(_dfscode[edge_id + 1]);
 
         // TODO here need to set pattern
         // Build rightmost path
         unsigned int backward_start_index;
-        build_rightmost_path(_rightmost_path_pattern, backward_start_index, nullptr);
+        build_rightmost_path(_rightmost_path_pattern, backward_start_index, _dfscode_patterns[edge_id]);
+
+        // std::cout << edge_id << ":rmp_p:"; for (auto a : _rightmost_path_pattern) std::cout << a << " "; std::cout << std::endl;
 
         // For each positions
         for (auto position : _dfscode_checker._current_positions)
@@ -277,13 +315,29 @@ bool GraphEnumerator::check_dfscode(const PDB & projected) noexcept
                 _edge_is_visited,
                 _rightmost_path_pattern,
                 position.get(),
-                nullptr // TODO
+                _dfscode_patterns[edge_id] // TODO
             );
 
-            if (!search_backward_edge(_dfscode_checker, position, DUMMY, backward_start_index))
+            // std::cout << edge_id << ":pos:" << *position << std::endl;
+            // std::cout << edge_id << ":rmp_g:"; for (auto a : _rightmost_path_instance) std::cout << a << " "; std::cout << std::endl;
+            // std::cout << edge_id << ":e_visited:" << Utils::to_string(_edge_is_visited) << "\n";
+
+            // if (edge_id > 1 && !search_backward_edge(_dfscode_checker, position, DUMMY, backward_start_index))
+            if (!search_backward_edge(
+                _dfscode_checker,
+                position,
+                _dfs_check_graph,
+                DUMMY,
+                backward_start_index
+            ))
                 return false;
 
-            if (!search_forward_edge(_dfscode_checker, position, DUMMY))
+            if (!search_forward_edge(
+                _dfscode_checker,
+                position,
+                _dfs_check_graph,
+                DUMMY
+            ))
                 return false;
         }
     }
@@ -296,6 +350,7 @@ bool GraphEnumerator::check_dfscode(const PDB & projected) noexcept
 
 void GraphEnumerator::build_dfscode(
     std::vector<DFSEdge> & dfscode,
+    std::vector<const Pattern<Symbol> *> & dfscode_patterns,
     const Pattern<Symbol> & pattern
 )
 const noexcept
@@ -312,6 +367,9 @@ const noexcept
 
     dfscode.clear();
     dfscode.resize(n_edges);
+
+    dfscode_patterns.clear();
+    dfscode_patterns.resize(n_edges);
 
     // Here add the edges iterativly (except ROOT edge and single-vertex edge)
     // edge_id = 0,1,...,n_edges-1
@@ -333,6 +391,9 @@ const noexcept
             instance->edge_label(edge_instance->_edge_id),
             instance->vertex_label(edge_instance->_end_vertex_id)
         };
+
+        // Set pattern pointer
+        dfscode_patterns[edge_id] = p;
 
         // Next
         p = p->_parent.get();
@@ -356,9 +417,8 @@ const noexcept
         GraphDatabase::ROOT,
         instance->vertex_label(edge_instance->_end_vertex_id)
     };
+    dfscode_patterns[0] = p;
 }
-
-
 
 
 void GraphEnumerator::build_pattern_graph(
@@ -454,6 +514,9 @@ bool GraphEnumerator::DFSCodeChecker::push(
 )
 noexcept
 {
+
+    // std::cout << "compare:" << dfs_edge.str() << "/" << _current_edge.str() << "/" << (dfs_edge < _current_edge) << "/" << (_current_edge < dfs_edge) << "\n";
+
     // the case that there is smaller dfs edge than the current edge
     // this means that the current edge is not minimum dfs-code edge.
     // so it is not needed to check further dfs-code with respect to the current edge
@@ -480,9 +543,14 @@ noexcept
 
 
 
-void GraphEnumerator::EdgeEnumerator::initialize(std::vector<PDB> & children) noexcept
+void GraphEnumerator::EdgeEnumerator::initialize(
+    std::vector<PDB> & children,
+    const PDB & parent
+)
+noexcept
 {
     _children = & children;
+    _parent = & parent;
     _n_children = 0;
     _edge2index.clear();
 }
@@ -502,11 +570,12 @@ noexcept
     PDB * child;
 
     // The case that new edge found
-    if (_edge2index.find(dfs_edge) == _edge2index.end())
+    auto it = _edge2index.find(dfs_edge);
+    if (it == _edge2index.end())
     {
         // register dfs edge
         _edge2index[dfs_edge] = _n_children;
-        index = _edge2index[dfs_edge];
+        index = _n_children;
 
         // create new child
         ++_n_children;
@@ -514,10 +583,15 @@ noexcept
         child = & (* _children)[index];
         child->_is_valid = false;
         child->_occurrence.clear();
+        child->_occurrence.reserve(_parent->_occurrence.size());
         child->_positions.clear();
+        child->_positions.reserve(_parent->_positions.size());
+    }
+    else
+    {
+        index = it->second;
     }
 
-    index = _edge2index[dfs_edge];
     child = & (* _children)[index];
 
     // Add new instance index

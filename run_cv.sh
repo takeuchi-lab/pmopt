@@ -6,10 +6,7 @@ query="cpu-b.q@cpu-b*"
 enable="enable"
 disable="disable"
 src="./pmopt/pmopt"
-outputs="outputs/230327"
-
-# data-dependent options
-input=$1; maxpat=$2; loss=$3
+outputs="outputs/230922-cv"
 
 # parameterized common options
 # l1_step * n_l1 = l1_min => n_l1 = l1_min / l1_step = 2/l1_step
@@ -98,3 +95,4 @@ run_all "a1a" "5" "squaredhinge"
 run_all "w1a" "3" "squaredhinge"
 run_all "splice" "3" "squaredhinge"
 run_all "a9a" "5" "squaredhinge"
+run_all "zinc500" "10" "squared"

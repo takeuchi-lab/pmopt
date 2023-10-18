@@ -1,33 +1,31 @@
 set -e
 
 n_jobs=16
-query="cpu-b.q@cpu-b*"
+query="cpu-c.q@cpu-c*"
 
 enable="enable"
 disable="disable"
 src="./pmopt/pmopt"
-outputs="a"
+outputs="outputs/230922-elstic-net"
 
-# data-dependent options
-input=$1; maxpat=$2; loss=$3
 
 # parameterized common options
 # l1_step * n_l1 = l1_min => n_l1 = l1_min / l1_step = 2/l1_step
-# l1_step_list="0.05 0.1 0.2 0.4" # => n_l1 = 40 20 10 5
-l1_step_list="0.1 0.2 0.4" # => n_l1 = 40 20 10 5
+l1_step_list="0.05 0.1 0.2 0.4" # => n_l1 = 40 20 10 5
+# l1_step_list="0.1 0.2 0.4" # => n_l1 = 40 20 10 5
 
 # common options
 maxiter="1000000"
 maxtrial="1000"
 verbose="1"
 l1_min="1e-2"
-maxfolds="10"
 seed=0
 
 cnt=1
 
 
 run_one () {
+    # data-dependent options
     input=$1; maxpat=$2; loss=$3
     gap_select=$4; multi_screen=$5; multi_update=$6; multi=$7
 
@@ -52,7 +50,6 @@ run_one () {
         --verbose ${verbose}
         --output-dir ${output}
         --seed ${seed}
-        --dry-run
     "
 
 script="\
@@ -94,3 +91,4 @@ run_all "a1a" "5" "squaredhinge"
 run_all "w1a" "3" "squaredhinge"
 run_all "splice" "3" "squaredhinge"
 run_all "a9a" "5" "squaredhinge"
+run_all "zinc500" "10" "squared"

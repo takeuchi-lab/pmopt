@@ -15,8 +15,8 @@ namespace PMOpt
         unsigned int _start_vertex_id;
         unsigned int _end_vertex_id;
         unsigned int _start_vertex_label;
-        unsigned int _end_vertex_label;
         unsigned int _edge_label;
+        unsigned int _end_vertex_label;
 
         inline bool operator==(const DFSEdge & edge) const noexcept;
         inline bool operator<(const DFSEdge & edge) const noexcept;
@@ -143,14 +143,16 @@ namespace PMOpt
         struct EdgeEnumerator
         {
             std::vector<PDB> * _children;
+            const PDB * _parent;
             std::unordered_map<DFSEdge, unsigned int> _edge2index;
             unsigned int _n_children;
 
             /**
              * @brief 
-             * @param children 
+             * @param[out] children 
+             * @param parent
              */
-            void initialize(std::vector<PDB> &) noexcept;
+            void initialize(std::vector<PDB> &, const PDB &) noexcept;
 
             /**
              * @brief 
@@ -178,7 +180,7 @@ namespace PMOpt
 
         Graph _dfs_check_graph;
         std::vector<DFSEdge> _dfscode;
-        std::vector<Pattern<Symbol>> _dfscode_pattern;
+        std::vector<const Pattern<Symbol> *> _dfscode_patterns;
         std::vector<unsigned int> _vertex_is_visited;
         std::vector<unsigned int> _edge_is_visited;
 
@@ -235,10 +237,15 @@ namespace PMOpt
         /**
          * @brief Build dfscode of pattern
          * @param[out] dfscode
+         * @param[out] dfscode_patterns
          * @param pattern
          * @param
          */
-        void build_dfscode(std::vector<DFSEdge> &, const Pattern<Symbol> &) const noexcept;
+        void build_dfscode(
+            std::vector<DFSEdge> &,
+            std::vector<const Pattern<Symbol> *> &,
+            const Pattern<Symbol> &
+        ) const noexcept;
 
 
         /**
@@ -253,6 +260,7 @@ namespace PMOpt
          * @brief Search backward-edge
          * @tparam EdgeCollector 
          * @param[out] collector
+         * @param graph
          * @param i_instance
          * @return bool 
          */
@@ -260,6 +268,7 @@ namespace PMOpt
         bool search_backward_edge(
             EdgeCollector &,
             std::shared_ptr<const Pattern<Edge>>,
+            const Graph &,
             unsigned int,
             unsigned int
         ) const noexcept;
@@ -269,6 +278,7 @@ namespace PMOpt
          * @brief Search forward-edge
          * @tparam EdgeCollector 
          * @param[out] collector,
+         * @param graph
          * @param i_instance
          * @return bool 
          */
@@ -276,6 +286,7 @@ namespace PMOpt
         bool search_forward_edge(
             EdgeCollector &,
             std::shared_ptr<const Pattern<Edge>>,
+            const Graph &,
             unsigned int
         ) const noexcept;
 
@@ -284,11 +295,12 @@ namespace PMOpt
          * @brief Search single vertex
          * @tparam EdgeCollector 
          * @param[out] collector
+         * @param graph
          * @param i_instance
          * @return bool 
          */
         template < class EdgeCollector >
-        bool search_vertex(EdgeCollector &, unsigned int) const noexcept;
+        bool search_vertex(EdgeCollector &, const Graph &, unsigned int) const noexcept;
 
 
         /**
@@ -329,12 +341,15 @@ template < class EdgeCollector >
 bool PMOpt::GraphEnumerator::search_backward_edge(
     EdgeCollector & collector,
     std::shared_ptr<const Pattern<Edge>> position,
+    const Graph & graph,
     unsigned int i_instance,
     unsigned int backward_start_index
 )
 const noexcept
 {
-    const auto & graph = _database[i_instance];
+    // const auto & graph = _database[i_instance];
+
+    // std::cout << _rightmost_path_instance.size() << "/" << backward_start_index << "\n";
 
     // get rightmost vertex
     auto rightmost_vertex_instance = _rightmost_path_instance[0]._end_vertex_id;
@@ -368,6 +383,8 @@ const noexcept
             if (_edge_is_visited[edge_instance._edge_id])
                 continue;
 
+            // std::cout << "echeck:" << edge_instance << "/" <<  << "\n";
+
             // New edge is that:
             // its starting vertex is the rightmost vertex, and
             // its ending vertex is one of the vertices on the rightmost path.
@@ -379,7 +396,10 @@ const noexcept
                 graph.vertex_label(rightmost_vertex_instance),
                 graph.edge_label(edge_instance._edge_id),
                 graph.vertex_label(edge_instance._start_vertex_id)
+                // graph.vertex_label(end_vertex_id_instance)
             };
+
+            // std::cout << "NEW_BKEDGE:" << dfs_edge.str() << "\n";
             
             // if failed to push new edge, then return
             // this return value is used if EdgeCollector == DFSCodeCollector
@@ -399,11 +419,12 @@ template < class EdgeCollector >
 bool PMOpt::GraphEnumerator::search_forward_edge(
     EdgeCollector & collector,
     std::shared_ptr<const Pattern<Edge>> position,
+    const Graph & graph,
     unsigned int i_instance
 )
 const noexcept
 {
-    const auto & graph = _database[i_instance];
+    // const auto & graph = _database[i_instance];
 
     auto rightmost_vertex_pattern = _rightmost_path_pattern[0]._end_vertex_id;
 
@@ -449,11 +470,13 @@ const noexcept
 template < class EdgeCollector >
 bool PMOpt::GraphEnumerator::search_vertex(
     EdgeCollector & collector,
+    const Graph & graph,
     unsigned int i_instance
 )
 const noexcept
 {
-    const auto & graph = _database[i_instance];
+    // const auto & graph = _database[i_instance];
+
     for (unsigned int vertex_id = 1; vertex_id < graph.n_vertices(); ++vertex_id)
     {
         // single vertex edge
@@ -475,8 +498,8 @@ const noexcept
 
         auto position = std::make_shared<const Pattern<Edge>>(Pattern<Edge>{
             Edge{GraphDatabase::ROOT, GraphDatabase::ROOT, GraphDatabase::ROOT},
-            std::shared_ptr<const Pattern<Edge>>()}
-        );
+            std::shared_ptr<const Pattern<Edge>>()
+        });
 
         if (!collector.push(dfs_edge, edge, position, i_instance))
             return false;
